@@ -9,6 +9,9 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'personality';
 const DATA_FILE = path.join(__dirname, 'data', 'submissions.json');
 const DATABASE_URL = process.env.DATABASE_URL;
 
+app.use(express.json({ limit: '2mb' }));
+app.use(express.static(path.join(__dirname, 'public')));
+
 // ====== 存储层 ======
 // 配置了 DATABASE_URL（Render Postgres）→ 数据永久保存在数据库；
 // 未配置 → 退回本地 data/submissions.json 文件（本地开发/临时运行）。
