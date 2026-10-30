@@ -34,7 +34,7 @@ if (DATABASE_URL) {
   db.insert = async (s) => {
     await pool.query(
       'INSERT INTO submissions (id, created_at, rings, scenarios, report) VALUES ($1, $2, $3, $4, $5)',
-      [s.id, s.createdAt, s.rings, s.scenarios, s.report]
+      [s.id, s.createdAt, JSON.stringify(s.rings), JSON.stringify(s.scenarios), JSON.stringify(s.report)]
     );
   };
   db.all = async () => {
