@@ -19,7 +19,7 @@ const db = { insert: null, all: null, remove: null };
 
 if (DATABASE_URL) {
   const { Pool } = require('pg');
-  const pool = new Pool({ connectionString: DATABASE_URL });
+  const pool = new Pool({ connectionString: DATABASE_URL, connectionTimeoutMillis: 10000 });
 
   pool.query(`CREATE TABLE IF NOT EXISTS submissions (
     id TEXT PRIMARY KEY,
@@ -159,7 +159,7 @@ app.post('/api/submit', async (req, res) => {
     res.json({ id: submission.id, report: submission.report });
   } catch (e) {
     console.error('保存失败:', e.message);
-    res.status(500).json({ error: '保存失败，请重试' });
+    res.status(500).json({ error: '保存失败，请重试', detail: e.message });
   }
 });
 
