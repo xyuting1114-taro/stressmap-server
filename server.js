@@ -159,7 +159,7 @@ app.post('/api/submit', async (req, res) => {
     res.json({ id: submission.id, report: submission.report });
   } catch (e) {
     console.error('保存失败:', e.message);
-    res.status(500).json({ error: '保存失败，请重试', detail: e.message });
+    res.status(500).json({ error: '保存失败，请重试' });
   }
 });
 
