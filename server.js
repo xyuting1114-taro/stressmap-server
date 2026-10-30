@@ -7,26 +7,78 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'personality';
 const DATA_FILE = path.join(__dirname, 'data', 'submissions.json');
+const DATABASE_URL = process.env.DATABASE_URL;
 
-app.use(express.json({ limit: '2mb' }));
-app.use(express.static(path.join(__dirname, 'public')));
+// ====== 存储层 ======
+// 配置了 DATABASE_URL（Render Postgres）→ 数据永久保存在数据库；
+// 未配置 → 退回本地 data/submissions.json 文件（本地开发/临时运行）。
+const db = { insert: null, all: null, remove: null };
 
-// 确保 data 目录和文件存在
-const dataDir = path.join(__dirname, 'data');
-if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-if (!fs.existsSync(DATA_FILE)) fs.writeFileSync(DATA_FILE, '[]', 'utf-8');
+if (DATABASE_URL) {
+  const { Pool } = require('pg');
+  const pool = new Pool({ connectionString: DATABASE_URL });
 
-function readData() {
-  try {
-    const raw = fs.readFileSync(DATA_FILE, 'utf-8');
-    return JSON.parse(raw);
-  } catch (e) {
-    return [];
-  }
-}
+  pool.query(`CREATE TABLE IF NOT EXISTS submissions (
+    id TEXT PRIMARY KEY,
+    created_at TEXT NOT NULL,
+    rings JSONB NOT NULL,
+    scenarios JSONB NOT NULL,
+    report JSONB NOT NULL
+  )`)
+    .then(() => console.log('Postgres 已连接，数据将永久保存'))
+    .catch(e => console.error('Postgres 初始化失败:', e.message));
 
-function writeData(data) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  db.insert = async (s) => {
+    await pool.query(
+      'INSERT INTO submissions (id, created_at, rings, scenarios, report) VALUES ($1, $2, $3, $4, $5)',
+      [s.id, s.createdAt, s.rings, s.scenarios, s.report]
+    );
+  };
+  db.all = async () => {
+    const r = await pool.query('SELECT * FROM submissions ORDER BY created_at');
+    return r.rows.map(x => ({
+      id: x.id,
+      createdAt: x.created_at,
+      rings: x.rings,
+      scenarios: x.scenarios,
+      report: x.report
+    }));
+  };
+  db.remove = async (id) => {
+    const r = await pool.query('DELETE FROM submissions WHERE id = $1 RETURNING id', [id]);
+    return r.rowCount > 0;
+  };
+} else {
+  // 本地 JSON 文件模式
+  const dataDir = path.join(__dirname, 'data');
+  if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+  if (!fs.existsSync(DATA_FILE)) fs.writeFileSync(DATA_FILE, '[]', 'utf-8');
+
+  const readData = () => {
+    try {
+      return JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
+    } catch (e) {
+      return [];
+    }
+  };
+  const writeData = (data) => {
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  };
+
+  db.insert = async (s) => {
+    const d = readData();
+    d.push(s);
+    writeData(d);
+  };
+  db.all = async () => readData();
+  db.remove = async (id) => {
+    const d = readData();
+    const idx = d.findIndex(s => s.id === id);
+    if (idx === -1) return false;
+    d.splice(idx, 1);
+    writeData(d);
+    return true;
+  };
 }
 
 // ====== 报告计算逻辑（与前端保持一致） ======
@@ -87,7 +139,7 @@ function computeReport(submission) {
 
 // ====== API ======
 // 参与者提交
-app.post('/api/submit', (req, res) => {
+app.post('/api/submit', async (req, res) => {
   const body = req.body || {};
   if (!body.rings || !body.scenarios) {
     return res.status(400).json({ error: '数据不完整' });
@@ -99,10 +151,13 @@ app.post('/api/submit', (req, res) => {
     scenarios: body.scenarios,
     report: computeReport(body)
   };
-  const data = readData();
-  data.push(submission);
-  writeData(data);
-  res.json({ id: submission.id, report: submission.report });
+  try {
+    await db.insert(submission);
+    res.json({ id: submission.id, report: submission.report });
+  } catch (e) {
+    console.error('保存失败:', e.message);
+    res.status(500).json({ error: '保存失败，请重试' });
+  }
 });
 
 // 管理端鉴权中间件
@@ -115,40 +170,52 @@ function adminAuth(req, res, next) {
 }
 
 // 管理端：获取所有提交
-app.get('/api/admin/submissions', adminAuth, (req, res) => {
-  const data = readData();
-  res.json(data);
+app.get('/api/admin/submissions', adminAuth, async (req, res) => {
+  try {
+    res.json(await db.all());
+  } catch (e) {
+    console.error('读取失败:', e.message);
+    res.status(500).json({ error: '读取失败' });
+  }
 });
 
 // 管理端：获取统计概览
-app.get('/api/admin/stats', adminAuth, (req, res) => {
-  const data = readData();
-  const total = data.length;
-  const copingCounts = { A: 0, B: 0, C: 0 };
-  const innerCounts = {};
-  data.forEach(s => {
-    const style = s.report && s.report.copingStyle;
-    if (style) copingCounts[style] = (copingCounts[style] || 0) + 1;
-    for (const [label, score] of Object.entries(s.rings || {})) {
-      if (score === 3) innerCounts[label] = (innerCounts[label] || 0) + 1;
-    }
-  });
-  res.json({ total, copingCounts, innerCounts });
+app.get('/api/admin/stats', adminAuth, async (req, res) => {
+  try {
+    const data = await db.all();
+    const total = data.length;
+    const copingCounts = { A: 0, B: 0, C: 0 };
+    const innerCounts = {};
+    data.forEach(s => {
+      const style = s.report && s.report.copingStyle;
+      if (style) copingCounts[style] = (copingCounts[style] || 0) + 1;
+      for (const [label, score] of Object.entries(s.rings || {})) {
+        if (score === 3) innerCounts[label] = (innerCounts[label] || 0) + 1;
+      }
+    });
+    res.json({ total, copingCounts, innerCounts });
+  } catch (e) {
+    console.error('读取失败:', e.message);
+    res.status(500).json({ error: '读取失败' });
+  }
 });
 
 // 管理端：删除单条
-app.delete('/api/admin/submissions/:id', adminAuth, (req, res) => {
-  const data = readData();
-  const idx = data.findIndex(s => s.id === req.params.id);
-  if (idx === -1) return res.status(404).json({ error: '未找到' });
-  data.splice(idx, 1);
-  writeData(data);
-  res.json({ ok: true });
+app.delete('/api/admin/submissions/:id', adminAuth, async (req, res) => {
+  try {
+    const ok = await db.remove(req.params.id);
+    if (!ok) return res.status(404).json({ error: '未找到' });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('删除失败:', e.message);
+    res.status(500).json({ error: '删除失败' });
+  }
 });
 
 app.listen(PORT, () => {
   console.log(`\n  StressMap 三环压力镜 服务已启动`);
   console.log(`  参与者入口:   http://localhost:${PORT}/`);
   console.log(`  管理后台:     http://localhost:${PORT}/admin.html`);
-  console.log(`  管理员密码:   ${ADMIN_PASSWORD}\n`);
+  console.log(`  管理员密码:   ${ADMIN_PASSWORD}`);
+  console.log(`  存储模式:     ${DATABASE_URL ? 'Postgres（永久保存）' : '本地 JSON 文件'}\n`);
 });
