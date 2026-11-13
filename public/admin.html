@@ -186,7 +186,8 @@ function renderSubmissions(subs) {
       <div class="sub-item">
         <div class="sub-head">
           <div>
-            <span class="sub-id">ID: ${s.id.slice(0,8)}</span>
+            <span class="sub-id" style="font-size:14px;font-weight:700;color:var(--c-primary);letter-spacing:1px;">${s.number || '-'}</span>
+            <span class="sub-id" style="margin-left:12px;">ID: ${s.id.slice(0,8)}</span>
             <span class="sub-time" style="margin-left:12px;">${new Date(s.createdAt).toLocaleString('zh-CN')}</span>
           </div>
           <button class="del-btn" data-id="${s.id}">删除</button>
@@ -234,7 +235,7 @@ function csvEscape(val) {
 
 function buildCSV(subs) {
   // 表头
-  const headers = ['submission_id', 'created_at'];
+  const headers = ['number', 'submission_id', 'created_at'];
   DOMAIN_LABELS.forEach(l => headers.push('ring_' + l));
   DOMAIN_LABELS.forEach(l => {
     headers.push('sc_' + l + '_intensity');
@@ -252,7 +253,7 @@ function buildCSV(subs) {
     const scMap = {};
     scenarios.forEach(sc => { scMap[sc.label] = sc; });
 
-    const row = [s.id, s.createdAt];
+    const row = [s.number || '', s.id, s.createdAt];
     // 三环分数
     DOMAIN_LABELS.forEach(l => row.push(rings[l] != null ? rings[l] : ''));
     // 情景题

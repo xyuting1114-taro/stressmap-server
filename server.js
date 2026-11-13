@@ -26,21 +26,26 @@ if (DATABASE_URL) {
     created_at TEXT NOT NULL,
     rings JSONB NOT NULL,
     scenarios JSONB NOT NULL,
-    report JSONB NOT NULL
+    report JSONB NOT NULL,
+    sn SERIAL
   )`)
+    .then(() => pool.query('ALTER TABLE submissions ADD COLUMN IF NOT EXISTS sn SERIAL'))
     .then(() => console.log('Postgres 已连接，数据将永久保存'))
     .catch(e => console.error('Postgres 初始化失败:', e.message));
 
   db.insert = async (s) => {
-    await pool.query(
-      'INSERT INTO submissions (id, created_at, rings, scenarios, report) VALUES ($1, $2, $3, $4, $5)',
+    const r = await pool.query(
+      'INSERT INTO submissions (id, created_at, rings, scenarios, report) VALUES ($1, $2, $3, $4, $5) RETURNING sn',
       [s.id, s.createdAt, JSON.stringify(s.rings), JSON.stringify(s.scenarios), JSON.stringify(s.report)]
     );
+    return r.rows[0].sn;
   };
   db.all = async () => {
-    const r = await pool.query('SELECT * FROM submissions ORDER BY created_at');
+    const r = await pool.query('SELECT * FROM submissions ORDER BY sn');
     return r.rows.map(x => ({
       id: x.id,
+      sn: x.sn,
+      number: 'S' + String(x.sn).padStart(3, '0'),
       createdAt: x.created_at,
       rings: x.rings,
       scenarios: x.scenarios,
@@ -70,10 +75,16 @@ if (DATABASE_URL) {
 
   db.insert = async (s) => {
     const d = readData();
+    const used = d.map((x, i) => x.sn || (i + 1));
+    s.sn = (used.length ? Math.max.apply(null, used) : 0) + 1;
     d.push(s);
     writeData(d);
+    return s.sn;
   };
-  db.all = async () => readData();
+  db.all = async () => readData().map((x, i) => {
+    const sn = x.sn || (i + 1);
+    return { ...x, sn, number: 'S' + String(sn).padStart(3, '0') };
+  });
   db.remove = async (id) => {
     const d = readData();
     const idx = d.findIndex(s => s.id === id);
@@ -155,8 +166,12 @@ app.post('/api/submit', async (req, res) => {
     report: computeReport(body)
   };
   try {
-    await db.insert(submission);
-    res.json({ id: submission.id, report: submission.report });
+    const sn = await db.insert(submission);
+    res.json({
+      id: submission.id,
+      number: 'S' + String(sn).padStart(3, '0'),
+      report: submission.report
+    });
   } catch (e) {
     console.error('保存失败:', e.message);
     res.status(500).json({ error: '保存失败，请重试' });

@@ -69,6 +69,8 @@ const I18N = {
     'result.coping.counts': 'A Solve {a} ｜ B Seek {b} ｜ C Avoid {c}',
     'result.restart': 'Restart',
     'result.footer': 'This tool does not assess mental health status and does not replace professional help. If you need support, please contact your school counseling center.',
+    'result.serialLabel': 'Questionnaire ID',
+    'result.copingReminder': 'Remember your coping style: {style}',
 
     // ---- 导出 / 分享 ----
     'result.exportImage': 'Save as Image',
@@ -181,6 +183,8 @@ const I18N = {
     'result.coping.counts': 'A 解决 {a} 次 ｜ B 求助 {b} 次 ｜ C 回避 {c} 次',
     'result.restart': '重新测试',
     'result.footer': '本工具不评估心理健康状态，不替代专业帮助。如需支持，请联系学校心理咨询中心。',
+    'result.serialLabel': '问卷编号',
+    'result.copingReminder': '记住你的问题应对类型：{style}',
 
     // ---- 导出 / 分享 ----
     'result.exportImage': '保存为图片',

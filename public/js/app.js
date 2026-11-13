@@ -31,7 +31,8 @@ const state = {
   rings: {},        // key -> score (1/2/3)
   scenarios: [],    // {label:key, intensity, coping}
   positions: {},    // key -> {x,y} (%)
-  report: null
+  report: null,
+  number: null      // 问卷编号，如 S001
 };
 
 const view = document.getElementById('view');
@@ -582,6 +583,7 @@ async function submitAndShow() {
     const data = await res.json();
     if (res.ok) {
       state.report = data.report;
+      state.number = data.number || '';
       setStep(3);
     } else {
       alert(t('submit.error') + (data.error || ''));
@@ -635,6 +637,13 @@ function buildReportText() {
   lines.push(t('result.section3'));
   lines.push(`${t('copingStyle.' + style + '.name')}（${style}）`);
   lines.push(t('copingStyle.' + style + '.desc'));
+
+  // 问卷编号 + 提醒
+  if (state.number) {
+    lines.push('');
+    lines.push(t('result.serialLabel') + '：' + state.number);
+    lines.push(t('result.copingReminder', { style: `${t('copingStyle.' + style + '.name')}（${style}）` }));
+  }
 
   return lines.join('\n');
 }
@@ -820,6 +829,10 @@ function renderResult() {
         <button class="btn btn-ghost" id="restartBtn">${t('result.restart')}</button>
       </div>
       <div class="footer-note">${t('result.footer')}</div>
+      <div class="serial-block">
+        <div class="serial-no">${state.number || '—'}</div>
+        <div class="serial-hint">${t('result.copingReminder', { style: '<b>' + t('copingStyle.'+style+'.name') + '（' + style + '）</b>' })}</div>
+      </div>
     </div>
   `;
 
@@ -828,6 +841,7 @@ function renderResult() {
     state.scenarios = [];
     state.positions = {};
     state.report = null;
+    state.number = null;
     setStep(0);
   };
 

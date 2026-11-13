@@ -328,3 +328,28 @@ body {
   .chip { font-size: 10px; }
   .pool .chip { font-size: 11px; padding: 6px 11px; }
 }
+
+/* 问卷编号（结果页最底部） */
+.serial-block {
+  margin-top: 26px;
+  padding-top: 18px;
+  border-top: 1px dashed var(--c-border);
+  text-align: center;
+}
+.serial-no {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--c-primary-dark, var(--c-primary));
+  font-variant-numeric: tabular-nums;
+}
+.serial-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--c-muted);
+}
+.serial-hint b {
+  color: var(--c-text);
+  font-weight: 600;
+}
