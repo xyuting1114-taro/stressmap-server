@@ -15,7 +15,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 // ====== 存储层 ======
 // 配置了 DATABASE_URL（Render Postgres）→ 数据永久保存在数据库；
 // 未配置 → 退回本地 data/submissions.json 文件（本地开发/临时运行）。
-const db = { insert: null, all: null, remove: null };
+const db = { insert: null, all: null, remove: null, clear: null };
 
 if (DATABASE_URL) {
   const { Pool } = require('pg');
@@ -56,6 +56,10 @@ if (DATABASE_URL) {
     const r = await pool.query('DELETE FROM submissions WHERE id = $1 RETURNING id', [id]);
     return r.rowCount > 0;
   };
+  // 清空全部数据并重置编号序列（下一次从 S001 开始）
+  db.clear = async () => {
+    await pool.query('TRUNCATE TABLE submissions RESTART IDENTITY');
+  };
 } else {
   // 本地 JSON 文件模式
   const dataDir = path.join(__dirname, 'data');
@@ -93,6 +97,7 @@ if (DATABASE_URL) {
     writeData(d);
     return true;
   };
+  db.clear = async () => writeData([]);
 }
 
 // ====== 报告计算逻辑（与前端保持一致） ======
@@ -215,6 +220,17 @@ app.get('/api/admin/stats', adminAuth, async (req, res) => {
   } catch (e) {
     console.error('读取失败:', e.message);
     res.status(500).json({ error: '读取失败' });
+  }
+});
+
+// 管理端：清空全部数据（编号重置为 S001）
+app.delete('/api/admin/submissions', adminAuth, async (req, res) => {
+  try {
+    await db.clear();
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('清空失败:', e.message);
+    res.status(500).json({ error: '清空失败' });
   }
 });
 

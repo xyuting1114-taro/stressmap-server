@@ -59,6 +59,7 @@
         <button class="btn btn-ghost" id="downloadCsvBtn">📊 下载 CSV</button>
         <button class="btn btn-ghost" id="downloadJsonBtn">📋 下载 JSON</button>
         <button class="btn btn-ghost" id="refreshBtn">刷新</button>
+        <button class="btn btn-ghost" id="clearAllBtn" style="border-color:#f0c0c0;color:#c04040;">🗑️ 清空全部</button>
       </div>
     </div>
 
@@ -91,6 +92,24 @@ document.getElementById('pwdInput').addEventListener('keydown', e => { if (e.key
 document.getElementById('refreshBtn').onclick = loadAll;
 document.getElementById('downloadCsvBtn').onclick = downloadCSV;
 document.getElementById('downloadJsonBtn').onclick = downloadJSON;
+document.getElementById('clearAllBtn').onclick = clearAll;
+
+async function clearAll() {
+  if (!confirm('确定清空【全部】提交数据吗？编号将重置为 S001，此操作不可恢复。')) return;
+  const typed = prompt('请输入"清空"两个字确认：');
+  if (typed !== '清空') { alert('已取消'); return; }
+  try {
+    const res = await fetch('/api/admin/submissions?pwd=' + encodeURIComponent(adminPwd), { method: 'DELETE' });
+    if (res.ok) {
+      alert('已清空全部数据，编号将从 S001 重新开始');
+      loadAll();
+    } else {
+      alert('清空失败');
+    }
+  } catch (e) {
+    alert('网络错误：' + e.message);
+  }
+}
 
 async function doLogin() {
   const pwd = document.getElementById('pwdInput').value.trim();
